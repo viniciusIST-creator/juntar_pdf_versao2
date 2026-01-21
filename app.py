@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, Canvas, Scrollbar
-from pypdf import PdfMerger, PdfReader
+from PyPDF2 import PdfMerger, PdfReader
 from pdf2image import convert_from_path
 from PIL import Image, ImageTk
 import os
