@@ -1,4 +1,4 @@
 customtkinter
 pillow
-pypdf
+PyPDF2
 pdf2image
