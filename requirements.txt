@@ -1,0 +1,4 @@
+customtkinter
+pillow
+pypdf
+pdf2image
