@@ -1,9 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
-from tkinter import filedialog, Canvas, Scrollbar
+from tkinter import filedialog, messagebox
 from PyPDF2 import PdfMerger, PdfReader
-from pdf2image import convert_from_path
-from PIL import Image, ImageTk
 import os
 
 ctk.set_appearance_mode("dark")
@@ -11,65 +9,51 @@ ctk.set_default_color_theme("blue")
 
 
 class PDFMergerApp(ctk.CTk):
-
     def __init__(self):
         super().__init__()
+
         self.title("PDF Merger – Vinicius Coelho")
-        self.geometry("1200x700")
+        self.geometry("1100x600")
 
         self.arquivos = []
-        self.preview_imgs = []
-        self.zoom = 1.0
 
         self._build_ui()
-
-    # ---------------- UI ---------------- #
 
     def _build_ui(self):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        # Topo
+        # ===== TOPO =====
         topo = ctk.CTkFrame(self)
-        topo.grid(row=0, column=0, columnspan=2, sticky="ew", pady=5)
+        topo.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
 
-        ctk.CTkButton(topo, text="Adicionar PDFs", command=self.adicionar_pdfs).pack(side="left", padx=5)
-        ctk.CTkButton(topo, text="Remover", command=self.remover_pdf).pack(side="left", padx=5)
-        ctk.CTkButton(topo, text="Juntar PDFs", command=self.juntar).pack(side="left", padx=5)
+        ctk.CTkButton(topo, text="Adicionar PDFs", command=self.adicionar_pdfs, width=140).pack(side="left", padx=5)
+        ctk.CTkButton(topo, text="Remover", command=self.remover_pdf, width=100).pack(side="left", padx=5)
+        ctk.CTkButton(topo, text="Juntar PDFs", command=self.juntar_pdfs, width=140).pack(side="left", padx=5)
 
-        ctk.CTkButton(topo, text="Zoom +", command=lambda: self.alterar_zoom(0.1)).pack(side="right", padx=5)
-        ctk.CTkButton(topo, text="Zoom -", command=lambda: self.alterar_zoom(-0.1)).pack(side="right", padx=5)
-
-        # Lista
-        self.lista = tk.Listbox(self, bg="#1e1e1e", fg="white", selectbackground="#444")
-        self.lista.grid(row=1, column=0, sticky="ns", padx=5, pady=5)
+        # ===== LISTA (ESQUERDA) =====
+        self.lista = tk.Listbox(
+            self,
+            bg="#1e1e1e",
+            fg="white",
+            selectbackground="#3a7ebf",
+            activestyle="none",
+            font=("Segoe UI", 10)
+        )
+        self.lista.grid(row=1, column=0, sticky="ns", padx=10, pady=10)
         self.lista.bind("<<ListboxSelect>>", self.atualizar_preview)
 
         # Drag & drop
         self.lista.bind("<ButtonPress-1>", self.drag_start)
         self.lista.bind("<B1-Motion>", self.drag_motion)
 
-        # Preview
-        preview_frame = ctk.CTkFrame(self)
-        preview_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        # ===== PREVIEW (DIREITA) =====
+        self.preview = ctk.CTkTextbox(self, width=400)
+        self.preview.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
+        self.preview.insert("end", "Selecione um PDF para visualizar informações")
+        self.preview.configure(state="disabled")
 
-        self.canvas = Canvas(preview_frame, bg="#1e1e1e", highlightthickness=0)
-        self.scrollbar = Scrollbar(preview_frame, orient="vertical", command=self.canvas.yview)
-
-        self.scroll_frame = ctk.CTkFrame(self.canvas)
-
-        self.scroll_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-
-        self.canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
-
-    # ---------------- Funções ---------------- #
+    # ===== FUNÇÕES =====
 
     def adicionar_pdfs(self):
         arquivos = filedialog.askopenfilenames(filetypes=[("PDF", "*.pdf")])
@@ -77,8 +61,7 @@ class PDFMergerApp(ctk.CTk):
             if f not in self.arquivos:
                 self.arquivos.append(f)
                 paginas = len(PdfReader(f).pages)
-                self.lista.insert("end", f"{os.path.basename(f)} ({paginas} págs)")
-
+                self.lista.insert("end", f"{os.path.basename(f)} ({paginas} páginas)")
         self.atualizar_preview()
 
     def remover_pdf(self):
@@ -89,8 +72,9 @@ class PDFMergerApp(ctk.CTk):
         self.arquivos.pop(idx)
         self.atualizar_preview()
 
-    def juntar(self):
+    def juntar_pdfs(self):
         if not self.arquivos:
+            messagebox.showwarning("Aviso", "Nenhum PDF selecionado")
             return
 
         destino = filedialog.asksaveasfilename(defaultextension=".pdf")
@@ -100,41 +84,40 @@ class PDFMergerApp(ctk.CTk):
         merger = PdfMerger()
         for pdf in self.arquivos:
             merger.append(pdf)
+
         merger.write(destino)
         merger.close()
 
-        # Preview do PDF FINAL
-        self.preview_pdf(destino)
+        messagebox.showinfo("Sucesso", "PDFs unidos com sucesso!")
 
     def atualizar_preview(self, event=None):
-        if not self.lista.curselection():
+        self.preview.configure(state="normal")
+        self.preview.delete("1.0", "end")
+
+        if not self.arquivos:
+            self.preview.insert("end", "Nenhum PDF carregado.")
+            self.preview.configure(state="disabled")
             return
-        idx = self.lista.curselection()[0]
-        self.preview_pdf(self.arquivos[idx])
 
-    def preview_pdf(self, pdf_path):
-        for w in self.scroll_frame.winfo_children():
-            w.destroy()
+        if self.lista.curselection():
+            idx = self.lista.curselection()[0]
+        else:
+            idx = 0
 
-        self.preview_imgs.clear()
+        pdf = self.arquivos[idx]
+        reader = PdfReader(pdf)
 
-        imagens = convert_from_path(pdf_path, dpi=int(120 * self.zoom))
+        self.preview.insert("end", f"ARQUIVO SELECIONADO\n")
+        self.preview.insert("end", f"{os.path.basename(pdf)}\n\n")
+        self.preview.insert("end", f"Páginas: {len(reader.pages)}\n\n")
+        self.preview.insert("end", "ORDEM FINAL:\n")
 
-        for img in imagens:
-            img.thumbnail((700, 1200))
-            tk_img = ImageTk.PhotoImage(img)
-            self.preview_imgs.append(tk_img)
+        for i, arq in enumerate(self.arquivos, start=1):
+            self.preview.insert("end", f"{i}. {os.path.basename(arq)}\n")
 
-            lbl = ctk.CTkLabel(self.scroll_frame, image=tk_img, text="")
-            lbl.pack(pady=5)
+        self.preview.configure(state="disabled")
 
-        self.canvas.yview_moveto(0)
-
-    def alterar_zoom(self, delta):
-        self.zoom = max(0.5, min(2.0, self.zoom + delta))
-        self.atualizar_preview()
-
-    # ---------------- Drag & Drop ---------------- #
+    # ===== DRAG & DROP =====
 
     def drag_start(self, event):
         self.drag_index = self.lista.nearest(event.y)
